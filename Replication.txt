@@ -49,7 +49,7 @@ Veritabanı Yaratma
 
     postgres
   psql
-    CREATE DATABASE trendyol ENCODING='UTF-8' LOCALE = 'tr_TR.UTF-8' TEMPLATE template0;
+    CREATE DATABASE deneme ENCODING='UTF-8' LOCALE = 'tr_TR.UTF-8' TEMPLATE template0;
     
 Veritabanına Bağlanma
 
