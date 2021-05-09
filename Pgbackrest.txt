@@ -1,0 +1,31 @@
+root
+yum install -y pgbackrest
+
+(pgBackRest’in wal takibini yapabilmek için postgresql.conf’da archive_mode ve archive_command parametrelerini kullanılıyoruz. Bu parametreleri seçtiğimiz mimaride bulunan tüm veritabanı sunucularında ayarlıyoruz.)
+vim postgresql.conf
+  archive_mode = on
+  archive_command = 'pgbackrest --stanza=13_data archive_push %p'
+
+systemctl restart postgresql-13
+
+( pgBackRest’in konfigürasyonlarını yapıyoruz.)
+vim /etc/pgbackrest.conf
+  [global]
+  repo-path=/pg_backup/13/data/pgbackrest  
+  backup-user=postgres
+  retention-full=3
+  retention-diff=2
+  process-max=2
+  log-path=/pg_backup/13/data/log/pgbackrest
+
+  [13_data]
+  pg1-path=/var/lib/pgsql/13/data/
+
+
+  pgbackrest --stanza=13_data stanza-create --log-level-console=info
+  pgbackrest --stanza=13_data check --log-level-console=info
+ 
+  (Yedek alabiliriz)
+  pgbackrest --stanza=13_data backup --log-level-console=info
+
+  pgbackrest --stanza=13_data info

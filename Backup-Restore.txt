@@ -1,0 +1,11 @@
+(1.makine)
+
+    (dump alma)
+    postgres
+      pg_dump deneme > deneme.backup
+       
+     (Aldığımız dump'ı yeni bir veritabanı create ederek içine restore ediyoruz.)
+     psql
+       createdb -T template0 deneme.backup
+    postgres
+       pg_restore -d deneme.backup  deneme

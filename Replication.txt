@@ -1,0 +1,139 @@
+(1.makine)
+
+    Kurulumlar
+root
+    dnf install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-8-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+    dnf -qy module disable postgresql
+    dnf install -y postgresql13 postgresql13-server postgresql13-contrib
+
+     mkdir -p /pg_data/13/main
+    chown -R postgres: /pg_data
+    chmod 700 -R /pg_data
+    
+    mkdir /etc/systemd/system/postgresql-13.service.d
+
+    vim /etc/systemd/system/postgresql-13.service.d/13-main.conf
+      [Service]
+      Environment=PGDATA=/pg_data/13/main/
+    
+    systemctl daemon-reload
+    
+    PGSETUP_INITDB_OPTIONS="--data-checksums" /usr/pgsql-13/bin/postgresql-13-setup initdb
+    
+    systemctl start postgresql-13
+    systemctl enable postgresql-13
+    systemctl status postgresql-13
+    
+    firewall-cmd --add-service=postgresql --permanent
+    systemctl reload firewalld.service
+    firewall-cmd --list-services
+    
+    (custom port firewall ayarları)
+    cp /usr/lib/firewalld/services/postgresql.xml /etc/firewalld/services/.
+    vim /etc/firewalld/services/postgresql.xml
+      port=6432
+
+
+    postgres
+    vim /var/lib/pgsql/.pgsql_profile
+      PGDATA=/pg_data/13/main
+      export PGDATA
+      PATH=$PATH:/usr/pgsql-13/bin
+      export PATH
+
+Veritabanı Yaratma
+
+    postgres
+  psql
+    CREATE ROLE ozlem SUPERUSER LOGIN PASSWORD '123';
+
+    postgres
+  psql
+    CREATE DATABASE trendyol ENCODING='UTF-8' LOCALE = 'tr_TR.UTF-8' TEMPLATE template0;
+    
+Veritabanına Bağlanma
+
+    postgres
+  psql
+    alter system set listen_addresses TO '0.0.0.0';
+    select pg_reload_conf();
+    select name from pg_settings where pending_restart ;
+
+root
+  systemctl restart postgresql-13
+
+postgres
+  psql
+    show listen_addresses;
+    
+root
+  firewall-cmd --list-services --permanent
+  firewall-cmd --add-service=postgresql --permanent
+  firewall-cmd --reload
+  firewall-cmd --list-services --permanent
+postgres
+  psql
+    create role dba;
+    grant dba to ozlem;
+    
+  vim $PGDATA/pg_hba.conf
+    local   all             all                                     peer
+    host    all             all             127.0.0.1/32            "scram-sha-256"
+
+    host    deneme        +dba              10.0.2.2/32             "scram-sha-256"
+    
+    
+  psql
+    select pg_reload_conf();
+    select * from pg_hba_file_rules;
+    
+
+  cd $PGDATA
+  openssl req -new -x509 -days 1095 -nodes -text \
+    -out server.crt -keyout server.key \
+    -subj "/CN=db.deneme.com"
+  chmod 0600 server.key server.crt
+  
+  psql
+    alter system set ssl to on;
+    show ssl_key_file;
+    show ssl_cert_file;
+    select pg_reload_conf();
+
+
+Basebackup Alma
+
+  (1.makine)
+  postgres
+    vim $PGDATA/pg_hba.conf
+      host    replication     standby         192.168.1.101/32       "scram-sha-256"
+      host    replication     standby         192.168.1.102/32       "scram-sha-256"
+
+    psql
+      select pg_reload_conf();
+      create role standby login replication password 'asdfgh';
+    
+    vim ~/.pgpass
+      192.168.1.102:5432:replication:standby:asdfgh
+    
+    chmod 600 ~/.pgpass
+
+  (2.makine)
+   postgres
+    vim ~/.pgpass
+      192.168.1.101:5432:replication:standby:asdfgh
+    
+    chmod 600 ~/.pgpass
+    
+     pg_basebackup \
+      --pgdata=/pg_data/13/main \
+      --write-recovery-conf \
+      --checkpoint=fast \
+      --create-slot \
+      --slot=db02 \
+      --wal-method=stream \
+      --verbose \
+      --progress \
+      --dbname="host=192.168.1.101 user=standby sslmode=disable"
+
+       rm $PGDATA/log/*.log
